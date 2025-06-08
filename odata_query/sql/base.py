@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from typing import Optional
 
@@ -15,9 +16,17 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         table_alias: Optional alias for the root table.
     """
 
-    def __init__(self, table_alias: Optional[str] = None):
+    def __init__(self, table_alias: Optional[str] = None, *, parametrized: bool = False):
         super().__init__()
         self.table_alias = table_alias
+        self.parametrized = parametrized
+        self.params = []
+
+    def add_parameter(self, value):
+        if value == "rie":
+            raise Exception
+        self.params.append(value)
+        return "?"
 
     def visit_Identifier(self, node: ast.Identifier) -> str:
         ":meta private:"
@@ -35,10 +44,15 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Integer(self, node: ast.Integer) -> str:
         ":meta private:"
+        if self.parametrized:
+            return self.add_parameter(int(node.val))
+
         return node.val
 
     def visit_Float(self, node: ast.Float) -> str:
         ":meta private:"
+        if self.parametrized:
+            return self.add_parameter(float(node.val))
         return node.val
 
     def visit_Boolean(self, node: ast.Boolean) -> str:
@@ -47,6 +61,9 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_String(self, node: ast.String) -> str:
         ":meta private:"
+        if self.parametrized:
+            return self.add_parameter(node.val)
+
         # Replace single quotes with double single-quotes acc SQL standard:
         val = node.val.replace("'", "''")
         # Wrap in single quotes for string constants acc SQL Standard
@@ -54,12 +71,18 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Date(self, node: ast.Date) -> str:
         ":meta private:"
+        if self.parametrized:
+            return self.add_parameter(node.val)
         # Single quotes for date constants acc SQL Standard
         return f"DATE '{node.val}'"
 
     def visit_DateTime(self, node: ast.DateTime) -> str:
         ":meta private:"
         sql_ts = node.val.replace("T", " ")
+
+        if self.parametrized:
+            return self.add_parameter(sql_ts)
+
         # Single quotes for datetime constants acc SQL Standard
         return f"TIMESTAMP '{sql_ts}'"
 
@@ -96,6 +119,8 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_GUID(self, node: ast.GUID) -> str:
         ":meta private:"
+        if self.parametrized:
+            return self.add_parameter(node.val)
         return f"'{node.val}'"
 
     def visit_List(self, node: ast.List) -> str:
@@ -235,6 +260,13 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         args_sql = [self.visit(arg) for arg in args]
         return f"{args_sql[0]} || {args_sql[1]}"
 
+    @contextlib.contextmanager
+    def not_parametrized(self):
+        parametrized_ = self.parametrized
+        self.parametrized = False
+        yield
+        self.parametrized = parametrized_
+
     def _to_pattern(self, arg: ast._Node, prefix: str = "", suffix: str = "") -> str:
         """
         Transform a node into a pattern usable in `LIKE` clauses.
@@ -248,13 +280,18 @@ class AstToSqlVisitor(visitor.NodeVisitor):
                 res = res + f" || '{suffix}'"
         else:
             res = str(arg.val).replace("%", "%%").replace("_", "__")  # type: ignore
+            if self.parametrized:
+                return self.add_parameter(prefix + res + suffix)
+
             res = "'" + prefix + res + suffix + "'"
+
         return res
 
     def sqlfunc_contains(self, *args: ast._Node) -> str:
         ":meta private:"
-        args_sql = [self.visit(arg) for arg in args]
-        inferred_type = [typing.infer_type(arg) for arg in args]
+        with self.not_parametrized():
+            args_sql = [self.visit(arg) for arg in args]
+            inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string or default, assume str-contains:
         if any(typ is ast.String for typ in inferred_type) or all(
@@ -271,8 +308,9 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_endswith(self, *args: ast._Node) -> str:
         ":meta private:"
-        args_sql = [self.visit(arg) for arg in args]
-        inferred_type = [typing.infer_type(arg) for arg in args]
+        with self.not_parametrized():
+            args_sql = [self.visit(arg) for arg in args]
+            inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string or default, assume str-endswith:
         if any(typ is ast.String for typ in inferred_type) or all(
@@ -323,8 +361,9 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_startswith(self, *args: ast._Node) -> str:
         ":meta private:"
-        args_sql = [self.visit(arg) for arg in args]
-        inferred_type = [typing.infer_type(arg) for arg in args]
+        with self.not_parametrized():
+            args_sql = [self.visit(arg) for arg in args]
+            inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string or default, assume str-startswith:
         if any(typ is ast.String for typ in inferred_type) or all(

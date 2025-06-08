@@ -43,6 +43,10 @@ class AstToAthenaSqlVisitor(AstToSqlVisitor):
 
     def visit_DateTime(self, node: ast.DateTime) -> str:
         ":meta private:"
+        if self.parametrized:
+            self.add_parameter(node.val)
+            return f"FROM_ISO8601_TIMESTAMP(?)"
+
         return f"FROM_ISO8601_TIMESTAMP('{node.val}')"
 
     def sqlfunc_length(self, arg: ast._Node) -> str:
