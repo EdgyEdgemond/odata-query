@@ -114,7 +114,7 @@ from odata_query import sql
         (
             "indexof(substring('abcdefghi', 3), 'hi') gt 1",
             "POSITION(? IN SUBSTR(?, ? + 1)) - 1 > ?",
-            ["abcdefghi", 3, "hi", 1],
+            ["hi", "abcdefghi", 3, 1],
         ),
         (
             "substring('hello', 1, 3) eq 'ell'",

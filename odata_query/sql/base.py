@@ -304,16 +304,15 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_contains(self, *args: ast._Node) -> str:
         ":meta private:"
-        with self.not_parametrized():
-            args_sql = [self.visit(arg) for arg in args]
-            inferred_type = [typing.infer_type(arg) for arg in args]
+        arg0 = self.visit(args[0]) if args else None
+        inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string or default, assume str-contains:
         if any(typ is ast.String for typ in inferred_type) or all(
             typ is None for typ in inferred_type
         ):
             pattern = self._to_pattern(args[1], prefix="%", suffix="%")
-            return f"{args_sql[0]} LIKE {pattern}"
+            return f"{arg0} LIKE {pattern}"
 
         # If any of the inputs is a list, assume list-contains:
         if any(typ is ast.List for typ in inferred_type):
@@ -323,16 +322,15 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_endswith(self, *args: ast._Node) -> str:
         ":meta private:"
-        with self.not_parametrized():
-            args_sql = [self.visit(arg) for arg in args]
-            inferred_type = [typing.infer_type(arg) for arg in args]
+        arg0 = self.visit(args[0]) if args else None
+        inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string or default, assume str-endswith:
         if any(typ is ast.String for typ in inferred_type) or all(
             typ is None for typ in inferred_type
         ):
             pattern = self._to_pattern(args[1], prefix="%")
-            return f"{args_sql[0]} LIKE {pattern}"
+            return f"{arg0} LIKE {pattern}"
 
         # If any of the inputs is a list, assume list-endswith
         # which isn't easily doable at the moment:
@@ -343,14 +341,13 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_indexof(self, *args: ast._Node) -> str:
         ":meta private:"
-        args_sql = [self.visit(arg) for arg in args]
         inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string, assume str-indexof:
         if any(typ is ast.String for typ in inferred_type) or all(
             typ is None for typ in inferred_type
         ):
-            return f"POSITION({args_sql[1]} IN {args_sql[0]}) - 1"
+            return f"POSITION({self.visit(args[1])} IN {self.visit(args[0])}) - 1"
 
         # If any of the inputs is a list, assume list-indexof
         # which isn't easily doable at the moment:
@@ -376,16 +373,15 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_startswith(self, *args: ast._Node) -> str:
         ":meta private:"
-        with self.not_parametrized():
-            args_sql = [self.visit(arg) for arg in args]
-            inferred_type = [typing.infer_type(arg) for arg in args]
+        arg0 = self.visit(args[0]) if args else None
+        inferred_type = [typing.infer_type(arg) for arg in args]
 
         # If any of the inputs is a string or default, assume str-startswith:
         if any(typ is ast.String for typ in inferred_type) or all(
             typ is None for typ in inferred_type
         ):
             pattern = self._to_pattern(args[1], suffix="%")
-            return f"{args_sql[0]} LIKE {pattern}"
+            return f"{arg0} LIKE {pattern}"
 
         # If any of the inputs is a list, assume list-startswith
         # which isn't easily doable at the moment:
@@ -470,20 +466,18 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def sqlfunc_floor(self, arg: ast._Node) -> str:
         ":meta private:"
-        arg_sql = self.visit(arg)
-        return f"""CASE {arg_sql}
-    WHEN > 0 CAST ({arg_sql} AS INTEGER)
-    WHEN < 0 CAST (0 - (ABS({arg_sql}) + 0.5) AS INTEGER))
-    ELSE {arg_sql}
+        return f"""CASE {self.visit(arg)}
+    WHEN > 0 CAST ({self.visit(arg)} AS INTEGER)
+    WHEN < 0 CAST (0 - (ABS({self.visit(arg)}) + 0.5) AS INTEGER))
+    ELSE {self.visit(arg)}
 END"""
 
     def sqlfunc_ceiling(self, arg: ast._Node) -> str:
         ":meta private:"
-        arg_sql = self.visit(arg)
-        return f"""CASE {arg_sql} - CAST ({arg_sql} AS INTEGER)
-    WHEN > 0 {arg_sql}+1
-    WHEN < 0 {arg_sql}-1
-    ELSE {arg_sql}
+        return f"""CASE {self.visit(arg)} - CAST ({self.visit(arg)} AS INTEGER)
+    WHEN > 0 CAST ({self.visit(arg)} AS INTEGER) + 1
+    WHEN < 0 CAST ({self.visit(arg)} AS INTEGER) - 1
+    ELSE {self.visit(arg)}
 END"""
 
     def sqlfunc_hassubset(self, *args: ast._Node) -> str:

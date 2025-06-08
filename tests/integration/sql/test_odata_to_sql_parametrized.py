@@ -116,7 +116,7 @@ from odata_query import exceptions as ex, sql
         (
             "indexof(substring('abcdefghi', 3), 'hi') gt 1",
             "POSITION(? IN SUBSTRING(? FROM ? + 1)) - 1 > ?",
-            ["abcdefghi", 3, "hi", 1],
+            ["hi", "abcdefghi", 3, 1],
         ),
         (
             "substring('hello', 1, 3) eq 'ell'",
