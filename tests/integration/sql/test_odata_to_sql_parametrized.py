@@ -105,7 +105,7 @@ from odata_query import exceptions as ex, sql
         (
             "year(date(now())) eq 2020",
             "EXTRACT (YEAR FROM CAST (CURRENT_TIMESTAMP AS DATE)) = ?",
-            [2000],
+            [2020],
         ),
         ("length(concat('abc', 'def')) lt 10", "CHAR_LENGTH(? || ?) < ?", ["abc", "def", 10]),
         (

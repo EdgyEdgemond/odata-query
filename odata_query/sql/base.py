@@ -7,6 +7,23 @@ from odata_query import ast, exceptions, typing, visitor
 log = logging.getLogger(__name__)
 
 
+class ParametrizationHandler:
+    template = "?"
+    positional = False
+
+    def __init__(self) -> None:
+        self.params = []
+
+    def add_parameter(self, value) -> str:
+        if self.positional and value in self.params:
+            position = self.params.index(value) + 1
+        else:
+            self.params.append(value)
+            position = len(self.params)
+
+        return self.template.format(position)
+
+
 class AstToSqlVisitor(visitor.NodeVisitor):
     """
     :class:`NodeVisitor` that transforms an :term:`AST` into a SQL ``WHERE``
@@ -16,17 +33,15 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         table_alias: Optional alias for the root table.
     """
 
-    def __init__(self, table_alias: Optional[str] = None, *, parametrized: bool = False):
+    def __init__(self, table_alias: Optional[str] = None, *, parametrized: bool = False, phandler: ParametrizationHandler | None = None):
         super().__init__()
         self.table_alias = table_alias
         self.parametrized = parametrized
-        self.params = []
+        self.phandler = phandler or ParametrizationHandler()
 
-    def add_parameter(self, value):
-        if value == "rie":
-            raise Exception
-        self.params.append(value)
-        return "?"
+    @property
+    def params(self) -> list:
+        return self.phandler.params
 
     def visit_Identifier(self, node: ast.Identifier) -> str:
         ":meta private:"
@@ -45,14 +60,14 @@ class AstToSqlVisitor(visitor.NodeVisitor):
     def visit_Integer(self, node: ast.Integer) -> str:
         ":meta private:"
         if self.parametrized:
-            return self.add_parameter(int(node.val))
+            return self.phandler.add_parameter(int(node.val))
 
         return node.val
 
     def visit_Float(self, node: ast.Float) -> str:
         ":meta private:"
         if self.parametrized:
-            return self.add_parameter(float(node.val))
+            return self.phandler.add_parameter(float(node.val))
         return node.val
 
     def visit_Boolean(self, node: ast.Boolean) -> str:
@@ -62,7 +77,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
     def visit_String(self, node: ast.String) -> str:
         ":meta private:"
         if self.parametrized:
-            return self.add_parameter(node.val)
+            return self.phandler.add_parameter(node.val)
 
         # Replace single quotes with double single-quotes acc SQL standard:
         val = node.val.replace("'", "''")
@@ -72,7 +87,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
     def visit_Date(self, node: ast.Date) -> str:
         ":meta private:"
         if self.parametrized:
-            return self.add_parameter(node.val)
+            return self.phandler.add_parameter(node.val)
         # Single quotes for date constants acc SQL Standard
         return f"DATE '{node.val}'"
 
@@ -81,7 +96,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         sql_ts = node.val.replace("T", " ")
 
         if self.parametrized:
-            return self.add_parameter(sql_ts)
+            return self.phandler.add_parameter(sql_ts)
 
         # Single quotes for datetime constants acc SQL Standard
         return f"TIMESTAMP '{sql_ts}'"
@@ -120,7 +135,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
     def visit_GUID(self, node: ast.GUID) -> str:
         ":meta private:"
         if self.parametrized:
-            return self.add_parameter(node.val)
+            return self.phandler.add_parameter(node.val)
         return f"'{node.val}'"
 
     def visit_List(self, node: ast.List) -> str:
@@ -281,7 +296,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         else:
             res = str(arg.val).replace("%", "%%").replace("_", "__")  # type: ignore
             if self.parametrized:
-                return self.add_parameter(prefix + res + suffix)
+                return self.phandler.add_parameter(prefix + res + suffix)
 
             res = "'" + prefix + res + suffix + "'"
 

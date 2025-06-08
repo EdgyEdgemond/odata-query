@@ -57,6 +57,125 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
 
 
 @pytest.mark.parametrize(
+    "ast_input, sql_expected, params",
+    [
+        (ast.Compare(ast.Eq(), ast.Integer("1"), ast.Integer("1")), "? = ?", [1, 1]),
+        (
+            ast.Compare(ast.NotEq(), ast.Boolean("true"), ast.Boolean("false")),
+            "TRUE != FALSE",
+            [],
+        ),
+        (
+            ast.Compare(ast.LtE(), ast.Identifier("eac"), ast.Float("123.12")),
+            '"eac" <= ?',
+            [123.12],
+        ),
+        (
+            ast.Compare(
+                ast.Lt(), ast.Identifier("period_start"), ast.Date("2019-01-01")
+            ),
+            "\"period_start\" < ?",
+            ["2019-01-01"],
+        ),
+        (
+            ast.BoolOp(
+                ast.And(),
+                ast.Compare(ast.GtE(), ast.Identifier("eac"), ast.Float("123.12")),
+                ast.Compare(
+                    ast.In(),
+                    ast.Identifier("meter_id"),
+                    ast.List([ast.String("1"), ast.String("2"), ast.String("3")]),
+                ),
+            ),
+            "\"eac\" >= ? AND \"meter_id\" IN (?, ?, ?)",
+            [123.12, "1", "2", "3"],
+        ),
+        (
+            ast.BoolOp(
+                ast.And(),
+                ast.Compare(ast.Eq(), ast.Identifier("a"), ast.String("1")),
+                ast.BoolOp(
+                    ast.Or(),
+                    ast.Compare(ast.LtE(), ast.Identifier("eac"), ast.Float("10.0")),
+                    ast.Compare(ast.GtE(), ast.Identifier("eac"), ast.Float("1.0")),
+                ),
+            ),
+            '"a" = ? AND ("eac" <= ? OR "eac" >= ?)',
+            ["1", 10.0, 1.0],
+        ),
+    ],
+)
+def test_ast_to_sql_parametrized(ast_input: ast._Node, sql_expected: str, params: list):
+    visitor = sql.AstToSqlVisitor(parametrized=True)
+    res = visitor.visit(ast_input)
+
+    assert res == sql_expected
+    assert visitor.params == params
+
+
+class PositionalParametrizationHandler(sql.base.ParametrizationHandler):
+    template = "${}"
+    positional = True
+
+
+@pytest.mark.parametrize(
+    "ast_input, sql_expected, params",
+    [
+        (ast.Compare(ast.Eq(), ast.Integer("1"), ast.Integer("1")), "$1 = $1", [1]),
+        (
+            ast.Compare(ast.NotEq(), ast.Boolean("true"), ast.Boolean("false")),
+            "TRUE != FALSE",
+            [],
+        ),
+        (
+            ast.Compare(ast.LtE(), ast.Identifier("eac"), ast.Float("123.12")),
+            '"eac" <= $1',
+            [123.12],
+        ),
+        (
+            ast.Compare(
+                ast.Lt(), ast.Identifier("period_start"), ast.Date("2019-01-01")
+            ),
+            "\"period_start\" < $1",
+            ["2019-01-01"],
+        ),
+        (
+            ast.BoolOp(
+                ast.And(),
+                ast.Compare(ast.GtE(), ast.Identifier("eac"), ast.Float("123.12")),
+                ast.Compare(
+                    ast.In(),
+                    ast.Identifier("meter_id"),
+                    ast.List([ast.String("1"), ast.String("2"), ast.String("3")]),
+                ),
+            ),
+            "\"eac\" >= $1 AND \"meter_id\" IN ($2, $3, $4)",
+            [123.12, "1", "2", "3"],
+        ),
+        (
+            ast.BoolOp(
+                ast.And(),
+                ast.Compare(ast.Eq(), ast.Identifier("a"), ast.String("1")),
+                ast.BoolOp(
+                    ast.Or(),
+                    ast.Compare(ast.LtE(), ast.Identifier("eac"), ast.Float("10.0")),
+                    ast.Compare(ast.GtE(), ast.Identifier("eac"), ast.Float("1.0")),
+                ),
+            ),
+            '"a" = $1 AND ("eac" <= $2 OR "eac" >= $3)',
+            ["1", 10.0, 1.0],
+        ),
+    ],
+)
+def test_ast_to_sql_parametrized_positional(ast_input: ast._Node, sql_expected: str, params: list):
+    visitor = sql.AstToSqlVisitor(parametrized=True, phandler=PositionalParametrizationHandler())
+    res = visitor.visit(ast_input)
+
+    assert res == sql_expected
+    assert visitor.params == params
+
+
+@pytest.mark.parametrize(
     "func_name, args, sql_expected",
     [
         ("concat", [ast.String("ab"), ast.String("cd")], "'ab' || 'cd'"),
