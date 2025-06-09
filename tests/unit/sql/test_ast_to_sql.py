@@ -17,34 +17,34 @@ class PositionalParametrizationHandler(sql.base.ParametrizationHandler):
 
 
 @pytest.mark.parametrize(
-    "value, raw, expected",
+    "node, expected",
     [
-        ("value", "value", "'value'"),
-        ("o'reilly", "o'reilly", "'o''reilly'"),
-        (1, "1", "1"),
-        (1.0, "1.0", "1.0"),
-        (date(2025, 1, 2), "2025-01-02", "DATE '2025-01-02'"),
-        (datetime(2025, 1, 2, 3, 4, 5), "2025-01-02T03:04:05", "TIMESTAMP '2025-01-02 03:04:05'"),
-        (UUID("91a26b13-39cb-4607-aa43-1ed0efb12abe"), "91a26b13-39cb-4607-aa43-1ed0efb12abe", "'91a26b13-39cb-4607-aa43-1ed0efb12abe'")
+        (ast.String("value"), "'value'"),
+        (ast.String("o'reilly"), "'o''reilly'"),
+        (ast.Integer("1"), "1"),
+        (ast.Float("1.0"), "1.0"),
+        (ast.Date("2025-01-02"), "DATE '2025-01-02'"),
+        (ast.DateTime("2025-01-02T03:04:05"), "TIMESTAMP '2025-01-02 03:04:05'"),
+        (ast.GUID("91a26b13-39cb-4607-aa43-1ed0efb12abe"), "'91a26b13-39cb-4607-aa43-1ed0efb12abe'")
     ],
 )
-def test_no_parametrization_sql_injection_protection(value, raw, expected):
+def test_no_parametrization_sql_injection_protection(node, expected):
     handler = sql.base.RawSqlHandler()
-    ph = handler.add_parameter(value, raw)
+    ph = handler.add_parameter(node)
     assert ph == expected
 
 
 def test_parametrization_handler():
     handler = sql.base.ParametrizationHandler()
-    ph = handler.add_parameter("value", "value")
+    ph = handler.add_parameter(ast.String("value"))
     assert handler.params == ["value"]
     assert ph == "?"
 
 
 def test_parametrization_handler_duplicate_param():
     handler = sql.base.ParametrizationHandler()
-    ph1 = handler.add_parameter("value", "value")
-    ph2 = handler.add_parameter("value", "value")
+    ph1 = handler.add_parameter(ast.String("value"))
+    ph2 = handler.add_parameter(ast.String("value"))
     assert handler.params == ["value", "value"]
     assert ph1 == "?"
     assert ph2 == "?"
@@ -52,22 +52,22 @@ def test_parametrization_handler_duplicate_param():
 
 def test_custom_parametrization_handler():
     handler = CustomParametrizationHandler()
-    ph = handler.add_parameter("value", "value")
+    ph = handler.add_parameter(ast.String("value"))
     assert handler.params == ["value"]
     assert ph == "%s"
 
 
 def test_positional_parametrization_handler():
     handler = PositionalParametrizationHandler()
-    ph = handler.add_parameter("value", "value")
+    ph = handler.add_parameter(ast.String("value"))
     assert handler.params == ["value"]
     assert ph == "$1"
 
 
 def test_positional_parametrization_handler_duplicate_param():
     handler = PositionalParametrizationHandler()
-    ph1 = handler.add_parameter("value", "value")
-    ph2 = handler.add_parameter("value", "value")
+    ph1 = handler.add_parameter(ast.String("value"))
+    ph2 = handler.add_parameter(ast.String("value"))
 
     assert handler.params == ["value"]
     assert ph1 == "$1"

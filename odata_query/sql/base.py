@@ -1,13 +1,14 @@
 import contextlib
 import logging
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
 
 from odata_query import ast, exceptions, typing, visitor
 
 log = logging.getLogger(__name__)
 
+Parameter =  Union[ast.String, ast.Integer, ast.Float, ast.Date, ast.DateTime, ast.GUID]
 
 class ParametrizationHandler:
     template = "?"
@@ -16,8 +17,8 @@ class ParametrizationHandler:
     def __init__(self) -> None:
         self.params = []
 
-    # TODO: Add type hint shorthand for parameter values
-    def add_parameter(self, value: str | int | float | date | datetime | UUID, raw: str) -> str:
+    def add_parameter(self, node: Parameter) -> str:
+        value = node.py_val
         if self.positional and value in self.params:
             position = self.params.index(value) + 1
         else:
@@ -52,22 +53,23 @@ class RawSqlHandler(ParametrizationHandler):
     def _uuid(self, raw: str) -> str:
         return f"'{raw}'"
 
-    def add_parameter(self, value: str | int | float | date | datetime | UUID, raw: str) -> str:
+    def add_parameter(self, node: Parameter) -> str:
         # Deal with sql injection protection
-        res = raw
-        if isinstance(value, str):
-            res = self._string(res)
+        pyval = node.py_val
+        val = node.val
+        if isinstance(pyval, str):
+            val = self._string(val)
 
-        elif isinstance(value, datetime):
-            res = self._datetime(res)
+        elif isinstance(pyval, datetime):
+            val = self._datetime(val)
 
-        elif isinstance(value, date):
-            res = self._date(res)
+        elif isinstance(pyval, date):
+            val = self._date(val)
 
-        elif isinstance(value, UUID):
-            res = self._uuid(res)
+        elif isinstance(pyval, UUID):
+            val = self._uuid(val)
 
-        return res
+        return val
 
 
 class AstToSqlVisitor(visitor.NodeVisitor):
@@ -106,11 +108,11 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Integer(self, node: ast.Integer) -> str:
         ":meta private:"
-        return self.phandler.add_parameter(int(node.val), node.val)
+        return self.phandler.add_parameter(node)
 
     def visit_Float(self, node: ast.Float) -> str:
         ":meta private:"
-        return self.phandler.add_parameter(float(node.val), node.val)
+        return self.phandler.add_parameter(node)
 
     def visit_Boolean(self, node: ast.Boolean) -> str:
         ":meta private:"
@@ -118,19 +120,15 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_String(self, node: ast.String) -> str:
         ":meta private:"
-        return self.phandler.add_parameter(node.val, node.val)
+        return self.phandler.add_parameter(node)
 
     def visit_Date(self, node: ast.Date) -> str:
         ":meta private:"
-        # TODO: Convert to date
-        val = datetime.strptime(node.val, "%Y-%m-%d").date()
-        return self.phandler.add_parameter(val, node.val)
+        return self.phandler.add_parameter(node)
 
     def visit_DateTime(self, node: ast.DateTime) -> str:
         ":meta private:"
-        # TODO: Convert to datetime
-        val = datetime.strptime(node.val, "%Y-%m-%dT%H:%M:%S")
-        return self.phandler.add_parameter(val, node.val)
+        return self.phandler.add_parameter(node)
 
     def visit_Duration(self, node: ast.Duration) -> str:
         ":meta private:"
@@ -165,7 +163,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_GUID(self, node: ast.GUID) -> str:
         ":meta private:"
-        return self.phandler.add_parameter(UUID(node.val), node.val)
+        return self.phandler.add_parameter(node)
 
     def visit_List(self, node: ast.List) -> str:
         ":meta private:"
@@ -318,7 +316,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         else:
             res = str(arg.val).replace("%", "%%").replace("_", "__")  # type: ignore
             res = prefix + res + suffix
-            return self.phandler.add_parameter(res, res)
+            return self.phandler.add_parameter(ast.String(res))
 
         return res
 
