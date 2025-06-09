@@ -9,6 +9,8 @@ from odata_query import ast, exceptions, typing, visitor
 log = logging.getLogger(__name__)
 
 Parameter =  Union[ast.String, ast.Integer, ast.Float, ast.Date, ast.DateTime, ast.GUID]
+ParameterValue = Union[str, int, float, date, datetime, UUID]
+
 
 class ParametrizationHandler:
     template = "?"
@@ -17,8 +19,7 @@ class ParametrizationHandler:
     def __init__(self) -> None:
         self.params = []
 
-    def add_parameter(self, node: Parameter) -> str:
-        value = node.py_val
+    def _add_parameter(self, value: ParameterValue):
         if self.positional and value in self.params:
             position = self.params.index(value) + 1
         else:
@@ -26,6 +27,9 @@ class ParametrizationHandler:
             position = len(self.params)
 
         return self.template.format(position)
+
+    def add_parameter(self, node: Parameter) -> str:
+        return self._add_parameter(node.py_val)
 
 
 class RawSqlHandler(ParametrizationHandler):

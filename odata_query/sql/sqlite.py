@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from odata_query import ast, exceptions, typing
 from odata_query.sql import base
@@ -12,6 +13,15 @@ class RawSqlHandler(base.RawSqlHandler):
     def _datetime(self, raw: str) -> str:
         # Single quotes for datetime constants acc SQL Standard
         return f"DATETIME('{raw}')"
+
+
+class ParametrizationHandler(base.ParametrizationHandler):
+    def add_parameter(self, node: base.Parameter) -> str:
+        # sqlite does not have support for UUID types
+        value = node.py_val
+        if isinstance(value, UUID):
+            value = node.val
+        return self._add_parameter(value)
 
 
 class AstToSqliteSqlVisitor(base.AstToSqlVisitor):
