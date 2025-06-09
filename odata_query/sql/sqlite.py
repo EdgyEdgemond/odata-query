@@ -1,9 +1,20 @@
+from datetime import datetime
+
 from odata_query import ast, exceptions, typing
+from odata_query.sql import base
 
-from .base import AstToSqlVisitor
+
+class RawSqlHandler(base.RawSqlHandler):
+    def _date(self, raw: str) -> str:
+        # Single quotes for date constants acc SQL Standard
+        return f"DATE('{raw}')"
+
+    def _datetime(self, raw: str) -> str:
+        # Single quotes for datetime constants acc SQL Standard
+        return f"DATETIME('{raw}')"
 
 
-class AstToSqliteSqlVisitor(AstToSqlVisitor):
+class AstToSqliteSqlVisitor(base.AstToSqlVisitor):
     """
     :class:`NodeVisitor` that transforms an :term:`AST` into a SQLite SQL
     ``WHERE`` clause.
@@ -11,20 +22,13 @@ class AstToSqliteSqlVisitor(AstToSqlVisitor):
     Args:
         table_alias: Optional alias for the root table.
     """
+    phandler = RawSqlHandler()
 
     def visit_Boolean(self, node: ast.Boolean) -> str:
         """:meta private:"""
         if node.py_val:
             return "1"
         return "0"
-
-    def visit_Date(self, node: ast.Date) -> str:
-        """:meta private:"""
-        return f"DATE('{node.val}')"
-
-    def visit_DateTime(self, node: ast.DateTime) -> str:
-        """:meta private:"""
-        return f"DATETIME('{node.val}')"
 
     def sqlfunc_indexof(self, *args: ast._Node) -> str:
         """:meta private:"""

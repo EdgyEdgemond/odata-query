@@ -1,4 +1,6 @@
+from datetime import date, datetime
 from typing import List
+from uuid import UUID
 
 import pytest
 
@@ -14,17 +16,35 @@ class PositionalParametrizationHandler(sql.base.ParametrizationHandler):
     positional = True
 
 
+@pytest.mark.parametrize(
+    "value, raw, expected",
+    [
+        ("value", "value", "'value'"),
+        ("o'reilly", "o'reilly", "'o''reilly'"),
+        (1, "1", "1"),
+        (1.0, "1.0", "1.0"),
+        (date(2025, 1, 2), "2025-01-02", "DATE '2025-01-02'"),
+        (datetime(2025, 1, 2, 3, 4, 5), "2025-01-02T03:04:05", "TIMESTAMP '2025-01-02 03:04:05'"),
+        (UUID("91a26b13-39cb-4607-aa43-1ed0efb12abe"), "91a26b13-39cb-4607-aa43-1ed0efb12abe", "'91a26b13-39cb-4607-aa43-1ed0efb12abe'")
+    ],
+)
+def test_no_parametrization_sql_injection_protection(value, raw, expected):
+    handler = sql.base.RawSqlHandler()
+    ph = handler.add_parameter(value, raw)
+    assert ph == expected
+
+
 def test_parametrization_handler():
     handler = sql.base.ParametrizationHandler()
-    ph = handler.add_parameter("value")
+    ph = handler.add_parameter("value", "value")
     assert handler.params == ["value"]
     assert ph == "?"
 
 
 def test_parametrization_handler_duplicate_param():
     handler = sql.base.ParametrizationHandler()
-    ph1 = handler.add_parameter("value")
-    ph2 = handler.add_parameter("value")
+    ph1 = handler.add_parameter("value", "value")
+    ph2 = handler.add_parameter("value", "value")
     assert handler.params == ["value", "value"]
     assert ph1 == "?"
     assert ph2 == "?"
@@ -32,22 +52,22 @@ def test_parametrization_handler_duplicate_param():
 
 def test_custom_parametrization_handler():
     handler = CustomParametrizationHandler()
-    ph = handler.add_parameter("value")
+    ph = handler.add_parameter("value", "value")
     assert handler.params == ["value"]
     assert ph == "%s"
 
 
 def test_positional_parametrization_handler():
     handler = PositionalParametrizationHandler()
-    ph = handler.add_parameter("value")
+    ph = handler.add_parameter("value", "value")
     assert handler.params == ["value"]
     assert ph == "$1"
 
 
 def test_positional_parametrization_handler_duplicate_param():
     handler = PositionalParametrizationHandler()
-    ph1 = handler.add_parameter("value")
-    ph2 = handler.add_parameter("value")
+    ph1 = handler.add_parameter("value", "value")
+    ph2 = handler.add_parameter("value", "value")
 
     assert handler.params == ["value"]
     assert ph1 == "$1"
@@ -124,7 +144,7 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
                 ast.Lt(), ast.Identifier("period_start"), ast.Date("2019-01-01")
             ),
             "\"period_start\" < $1",
-            ["2019-01-01"],
+            [date(2019, 1, 1)],
         ),
         (
             ast.BoolOp(
@@ -155,7 +175,7 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
     ],
 )
 def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: list):
-    visitor = sql.AstToSqlVisitor(parametrized=True, phandler=PositionalParametrizationHandler())
+    visitor = sql.AstToSqlVisitor(phandler=PositionalParametrizationHandler())
     res = visitor.visit(ast_input)
 
     assert res == sql_expected
@@ -181,7 +201,7 @@ def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: 
                 ast.Lt(), ast.Identifier("period_start"), ast.Date("2019-01-01")
             ),
             "\"period_start\" < ?",
-            ["2019-01-01"],
+            [date(2019, 1, 1)],
         ),
         (
             ast.BoolOp(
@@ -212,7 +232,7 @@ def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: 
     ],
 )
 def test_ast_to_sql_parametrized(ast_input: ast._Node, sql_expected: str, params: list):
-    visitor = sql.AstToSqlVisitor(parametrized=True)
+    visitor = sql.AstToSqlVisitor(phandler=sql.base.ParametrizationHandler())
     res = visitor.visit(ast_input)
 
     assert res == sql_expected
@@ -376,37 +396,37 @@ def test_ast_to_sql_functions(func_name: str, args: List[ast._Node], sql_expecte
             "year",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (YEAR FROM ?)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "month",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (MONTH FROM ?)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "day",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (DAY FROM ?)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "hour",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (HOUR FROM ?)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "minute",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (MINUTE FROM ?)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "date",
             [ast.DateTime("2018-01-01T10:00:00")],
             "CAST (? AS DATE)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         ("now", [], "CURRENT_TIMESTAMP", []),
         ("round", [ast.Float("123.12")], "CAST (? + 0.5 AS INTEGER)", [123.12]),
@@ -434,7 +454,7 @@ END""",
 )
 def test_ast_to_sql_functions_parametrized(func_name: str, args: List[ast._Node], sql_expected: str, params: list):
     inp_ast = ast.Call(ast.Identifier(func_name), args)
-    visitor = sql.AstToSqlVisitor(parametrized=True)
+    visitor = sql.AstToSqlVisitor(phandler=sql.base.ParametrizationHandler())
     res = visitor.visit(inp_ast)
 
     assert res == sql_expected
@@ -495,37 +515,37 @@ def test_ast_to_sql_functions_parametrized(func_name: str, args: List[ast._Node]
             "year",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (YEAR FROM $1)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "month",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (MONTH FROM $1)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "day",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (DAY FROM $1)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "hour",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (HOUR FROM $1)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "minute",
             [ast.DateTime("2018-01-01T10:00:00")],
             "EXTRACT (MINUTE FROM $1)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         (
             "date",
             [ast.DateTime("2018-01-01T10:00:00")],
             "CAST ($1 AS DATE)",
-            ["2018-01-01 10:00:00"],
+            [datetime(2018, 1, 1, 10, 0, 0)],
         ),
         ("now", [], "CURRENT_TIMESTAMP", []),
         ("round", [ast.Float("123.12")], "CAST ($1 + 0.5 AS INTEGER)", [123.12]),
@@ -553,7 +573,7 @@ END""",
 )
 def test_ast_to_sql_functions_positional(func_name: str, args: List[ast._Node], sql_expected: str, params: list):
     inp_ast = ast.Call(ast.Identifier(func_name), args)
-    visitor = sql.AstToSqlVisitor(parametrized=True, phandler=PositionalParametrizationHandler())
+    visitor = sql.AstToSqlVisitor(phandler=PositionalParametrizationHandler())
     res = visitor.visit(inp_ast)
 
     assert res == sql_expected

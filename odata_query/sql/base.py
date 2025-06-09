@@ -1,6 +1,8 @@
 import contextlib
 import logging
+from datetime import date, datetime
 from typing import Optional
+from uuid import UUID
 
 from odata_query import ast, exceptions, typing, visitor
 
@@ -14,7 +16,8 @@ class ParametrizationHandler:
     def __init__(self) -> None:
         self.params = []
 
-    def add_parameter(self, value) -> str:
+    # TODO: Add type hint shorthand for parameter values
+    def add_parameter(self, value: str | int | float | date | datetime | UUID, raw: str) -> str:
         if self.positional and value in self.params:
             position = self.params.index(value) + 1
         else:
@@ -22,6 +25,49 @@ class ParametrizationHandler:
             position = len(self.params)
 
         return self.template.format(position)
+
+
+class RawSqlHandler(ParametrizationHandler):
+    template = ""
+    positional = False
+
+    def __init__(self) -> None:
+        self.params = []
+
+    def _string(self, raw: str) -> str:
+        # Replace single quotes with double single-quotes acc SQL standard:
+        raw = raw.replace("'", "''")
+        # Wrap in single quotes for string constants acc SQL Standard
+        return f"'{raw}'"
+
+    def _date(self, raw: str) -> str:
+        # Single quotes for date constants acc SQL Standard
+        return f"DATE '{raw}'"
+
+    def _datetime(self, raw: str) -> str:
+        raw = raw.replace("T", " ")
+        # Single quotes for datetime constants acc SQL Standard
+        return f"TIMESTAMP '{raw}'"
+
+    def _uuid(self, raw: str) -> str:
+        return f"'{raw}'"
+
+    def add_parameter(self, value: str | int | float | date | datetime | UUID, raw: str) -> str:
+        # Deal with sql injection protection
+        res = raw
+        if isinstance(value, str):
+            res = self._string(res)
+
+        elif isinstance(value, datetime):
+            res = self._datetime(res)
+
+        elif isinstance(value, date):
+            res = self._date(res)
+
+        elif isinstance(value, UUID):
+            res = self._uuid(res)
+
+        return res
 
 
 class AstToSqlVisitor(visitor.NodeVisitor):
@@ -32,12 +78,13 @@ class AstToSqlVisitor(visitor.NodeVisitor):
     Args:
         table_alias: Optional alias for the root table.
     """
+    phandler = RawSqlHandler()
 
-    def __init__(self, table_alias: Optional[str] = None, *, parametrized: bool = False, phandler: ParametrizationHandler | None = None):
+    def __init__(self, table_alias: Optional[str] = None, *, phandler: ParametrizationHandler | None = None):
         super().__init__()
         self.table_alias = table_alias
-        self.parametrized = parametrized
-        self.phandler = phandler or ParametrizationHandler()
+        if phandler:
+            self.phandler = phandler
 
     @property
     def params(self) -> list:
@@ -59,16 +106,11 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Integer(self, node: ast.Integer) -> str:
         ":meta private:"
-        if self.parametrized:
-            return self.phandler.add_parameter(int(node.val))
-
-        return node.val
+        return self.phandler.add_parameter(int(node.val), node.val)
 
     def visit_Float(self, node: ast.Float) -> str:
         ":meta private:"
-        if self.parametrized:
-            return self.phandler.add_parameter(float(node.val))
-        return node.val
+        return self.phandler.add_parameter(float(node.val), node.val)
 
     def visit_Boolean(self, node: ast.Boolean) -> str:
         ":meta private:"
@@ -76,30 +118,19 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_String(self, node: ast.String) -> str:
         ":meta private:"
-        if self.parametrized:
-            return self.phandler.add_parameter(node.val)
-
-        # Replace single quotes with double single-quotes acc SQL standard:
-        val = node.val.replace("'", "''")
-        # Wrap in single quotes for string constants acc SQL Standard
-        return f"'{val}'"
+        return self.phandler.add_parameter(node.val, node.val)
 
     def visit_Date(self, node: ast.Date) -> str:
         ":meta private:"
-        if self.parametrized:
-            return self.phandler.add_parameter(node.val)
-        # Single quotes for date constants acc SQL Standard
-        return f"DATE '{node.val}'"
+        # TODO: Convert to date
+        val = datetime.strptime(node.val, "%Y-%m-%d").date()
+        return self.phandler.add_parameter(val, node.val)
 
     def visit_DateTime(self, node: ast.DateTime) -> str:
         ":meta private:"
-        sql_ts = node.val.replace("T", " ")
-
-        if self.parametrized:
-            return self.phandler.add_parameter(sql_ts)
-
-        # Single quotes for datetime constants acc SQL Standard
-        return f"TIMESTAMP '{sql_ts}'"
+        # TODO: Convert to datetime
+        val = datetime.strptime(node.val, "%Y-%m-%dT%H:%M:%S")
+        return self.phandler.add_parameter(val, node.val)
 
     def visit_Duration(self, node: ast.Duration) -> str:
         ":meta private:"
@@ -134,9 +165,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_GUID(self, node: ast.GUID) -> str:
         ":meta private:"
-        if self.parametrized:
-            return self.phandler.add_parameter(node.val)
-        return f"'{node.val}'"
+        return self.phandler.add_parameter(UUID(node.val), node.val)
 
     def visit_List(self, node: ast.List) -> str:
         ":meta private:"
@@ -275,13 +304,6 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         args_sql = [self.visit(arg) for arg in args]
         return f"{args_sql[0]} || {args_sql[1]}"
 
-    @contextlib.contextmanager
-    def not_parametrized(self):
-        parametrized_ = self.parametrized
-        self.parametrized = False
-        yield
-        self.parametrized = parametrized_
-
     def _to_pattern(self, arg: ast._Node, prefix: str = "", suffix: str = "") -> str:
         """
         Transform a node into a pattern usable in `LIKE` clauses.
@@ -295,10 +317,8 @@ class AstToSqlVisitor(visitor.NodeVisitor):
                 res = res + f" || '{suffix}'"
         else:
             res = str(arg.val).replace("%", "%%").replace("_", "__")  # type: ignore
-            if self.parametrized:
-                return self.phandler.add_parameter(prefix + res + suffix)
-
-            res = "'" + prefix + res + suffix + "'"
+            res = prefix + res + suffix
+            return self.phandler.add_parameter(res, res)
 
         return res
 

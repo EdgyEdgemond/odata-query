@@ -1,3 +1,6 @@
+from datetime import datetime
+from uuid import UUID
+
 import pytest
 
 from odata_query import sql
@@ -12,7 +15,7 @@ from odata_query import sql
         (
             "meter_id eq 6c0e37e3-e856-45ee-bd58-484b11882c67",
             "\"meter_id\" = ?",
-            ["6c0e37e3-e856-45ee-bd58-484b11882c67"],
+            [UUID("6c0e37e3-e856-45ee-bd58-484b11882c67")],
         ),
         ("meter_id in ('1',)", "\"meter_id\" IN (?)", ["1"]),
         ("meter_id in ('1', '2')", "\"meter_id\" IN (?, ?)", ["1", "2"]),
@@ -51,8 +54,8 @@ from odata_query import sql
         ("eac mod 10 add -1 le eac", '"eac" % ? + ? <= "eac"', [10, -1]),
         (
             "period_start gt 2020-01-01T00:00:00",
-            "\"period_start\" > FROM_ISO8601_TIMESTAMP(?)",
-            ['2020-01-01T00:00:00'],
+            "\"period_start\" > ?",
+            [datetime(2020, 1, 1, 0, 0, 0)],
         ),
         (
             "period_start add duration'P365D' ge period_end",
@@ -146,7 +149,7 @@ from odata_query import sql
 )
 def test_odata_filter_to_sql(odata_query: str, expected: str, params, lexer, parser):
     ast = parser.parse(lexer.tokenize(odata_query))
-    visitor = sql.AstToAthenaSqlVisitor(parametrized=True)
+    visitor = sql.AstToAthenaSqlVisitor(phandler=sql.base.ParametrizationHandler())
 
     res = visitor.visit(ast)
     assert res == expected

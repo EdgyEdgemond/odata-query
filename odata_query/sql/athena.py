@@ -2,7 +2,12 @@ import re
 
 from odata_query import ast, exceptions, typing
 
-from .base import AstToSqlVisitor
+from odata_query.sql import base
+
+
+class RawSqlHandler(base.RawSqlHandler):
+    def _datetime(self, raw: str) -> str:
+        return f"FROM_ISO8601_TIMESTAMP('{raw}')"
 
 UNSAFE_CHARS = re.compile(r"[^a-zA-Z0-9_]")
 
@@ -22,7 +27,7 @@ def clean_athena_identifier(identifier: str) -> str:
     return id_new
 
 
-class AstToAthenaSqlVisitor(AstToSqlVisitor):
+class AstToAthenaSqlVisitor(base.AstToSqlVisitor):
     """
     :class:`NodeVisitor` that transforms an :term:`AST` into an Athena SQL
     ``WHERE`` clause.
@@ -30,6 +35,7 @@ class AstToAthenaSqlVisitor(AstToSqlVisitor):
     Args:
         table_alias: Optional alias for the root table.
     """
+    phandler = RawSqlHandler()
 
     def visit_Identifier(self, node: ast.Identifier) -> str:
         ":meta private:"
@@ -40,14 +46,6 @@ class AstToAthenaSqlVisitor(AstToSqlVisitor):
             sql_id = f'"{self.table_alias}".' + sql_id
 
         return sql_id
-
-    def visit_DateTime(self, node: ast.DateTime) -> str:
-        ":meta private:"
-        if self.parametrized:
-            placeholder = self.phandler.add_parameter(node.val)
-            return f"FROM_ISO8601_TIMESTAMP({placeholder})"
-
-        return f"FROM_ISO8601_TIMESTAMP('{node.val}')"
 
     def sqlfunc_length(self, arg: ast._Node) -> str:
         ":meta private:"
