@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import UUID
 
 from odata_query import ast, exceptions, typing
@@ -32,6 +31,7 @@ class AstToSqliteSqlVisitor(base.AstToSqlVisitor):
     Args:
         table_alias: Optional alias for the root table.
     """
+
     phandler = RawSqlHandler()
 
     def visit_Boolean(self, node: ast.Boolean) -> str:

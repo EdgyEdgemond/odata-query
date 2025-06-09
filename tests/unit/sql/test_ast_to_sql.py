@@ -1,6 +1,5 @@
 from datetime import date, datetime
 from typing import List
-from uuid import UUID
 
 import pytest
 
@@ -25,7 +24,10 @@ class PositionalParametrizationHandler(sql.base.ParametrizationHandler):
         (ast.Float("1.0"), "1.0"),
         (ast.Date("2025-01-02"), "DATE '2025-01-02'"),
         (ast.DateTime("2025-01-02T03:04:05"), "TIMESTAMP '2025-01-02 03:04:05'"),
-        (ast.GUID("91a26b13-39cb-4607-aa43-1ed0efb12abe"), "'91a26b13-39cb-4607-aa43-1ed0efb12abe'")
+        (
+            ast.GUID("91a26b13-39cb-4607-aa43-1ed0efb12abe"),
+            "'91a26b13-39cb-4607-aa43-1ed0efb12abe'",
+        ),
     ],
 )
 def test_no_parametrization_sql_injection_protection(node, expected):
@@ -143,7 +145,7 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
             ast.Compare(
                 ast.Lt(), ast.Identifier("period_start"), ast.Date("2019-01-01")
             ),
-            "\"period_start\" < $1",
+            '"period_start" < $1',
             [date(2019, 1, 1)],
         ),
         (
@@ -156,7 +158,7 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
                     ast.List([ast.String("1"), ast.String("2"), ast.String("3")]),
                 ),
             ),
-            "\"eac\" >= $1 AND \"meter_id\" IN ($2, $3, $4)",
+            '"eac" >= $1 AND "meter_id" IN ($2, $3, $4)',
             [123.12, "1", "2", "3"],
         ),
         (
@@ -174,7 +176,9 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
         ),
     ],
 )
-def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: list):
+def test_ast_to_sql_positional(
+    ast_input: ast._Node, sql_expected: str, params: List[sql.base.ParameterValue]
+):
     visitor = sql.AstToSqlVisitor(phandler=PositionalParametrizationHandler())
     res = visitor.visit(ast_input)
 
@@ -200,7 +204,7 @@ def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: 
             ast.Compare(
                 ast.Lt(), ast.Identifier("period_start"), ast.Date("2019-01-01")
             ),
-            "\"period_start\" < ?",
+            '"period_start" < ?',
             [date(2019, 1, 1)],
         ),
         (
@@ -213,7 +217,7 @@ def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: 
                     ast.List([ast.String("1"), ast.String("2"), ast.String("3")]),
                 ),
             ),
-            "\"eac\" >= ? AND \"meter_id\" IN (?, ?, ?)",
+            '"eac" >= ? AND "meter_id" IN (?, ?, ?)',
             [123.12, "1", "2", "3"],
         ),
         (
@@ -231,7 +235,9 @@ def test_ast_to_sql_positional(ast_input: ast._Node, sql_expected: str, params: 
         ),
     ],
 )
-def test_ast_to_sql_parametrized(ast_input: ast._Node, sql_expected: str, params: list):
+def test_ast_to_sql_parametrized(
+    ast_input: ast._Node, sql_expected: str, params: List[sql.base.ParameterValue]
+):
     visitor = sql.AstToSqlVisitor(phandler=sql.base.ParametrizationHandler())
     res = visitor.visit(ast_input)
 
@@ -452,7 +458,12 @@ END""",
         ),
     ],
 )
-def test_ast_to_sql_functions_parametrized(func_name: str, args: List[ast._Node], sql_expected: str, params: list):
+def test_ast_to_sql_functions_parametrized(
+    func_name: str,
+    args: List[ast._Node],
+    sql_expected: str,
+    params: List[sql.base.ParameterValue],
+):
     inp_ast = ast.Call(ast.Identifier(func_name), args)
     visitor = sql.AstToSqlVisitor(phandler=sql.base.ParametrizationHandler())
     res = visitor.visit(inp_ast)
@@ -571,7 +582,12 @@ END""",
         ),
     ],
 )
-def test_ast_to_sql_functions_positional(func_name: str, args: List[ast._Node], sql_expected: str, params: list):
+def test_ast_to_sql_functions_positional(
+    func_name: str,
+    args: List[ast._Node],
+    sql_expected: str,
+    params: List[sql.base.ParameterValue],
+):
     inp_ast = ast.Call(ast.Identifier(func_name), args)
     visitor = sql.AstToSqlVisitor(phandler=PositionalParametrizationHandler())
     res = visitor.visit(inp_ast)

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Union
 from uuid import UUID
 
 import pytest
@@ -10,17 +9,17 @@ from odata_query import exceptions as ex, sql
 @pytest.mark.parametrize(
     "odata_query, expected, params",
     [
-        ("meter_id eq '1'", "\"meter_id\" = ?", ["1"]),
-        ("meter_id ne '1'", "\"meter_id\" != ?", ["1"]),
-        ("meter_id eq 'o''reilly'''", "\"meter_id\" = ?", ["o'reilly'"]),
+        ("meter_id eq '1'", '"meter_id" = ?', ["1"]),
+        ("meter_id ne '1'", '"meter_id" != ?', ["1"]),
+        ("meter_id eq 'o''reilly'''", '"meter_id" = ?', ["o'reilly'"]),
         (
             "meter_id eq 6c0e37e3-e856-45ee-bd58-484b11882c67",
-            "\"meter_id\" = ?",
+            '"meter_id" = ?',
             [UUID("6c0e37e3-e856-45ee-bd58-484b11882c67")],
         ),
-        ("meter_id in ('1',)", "\"meter_id\" IN (?)", ["1"]),
-        ("meter_id in ('1', '2')", "\"meter_id\" IN (?, ?)", ["1", "2"]),
-        ("not (meter_id in ('1', '2'))", "NOT \"meter_id\" IN (?, ?)", ["1", "2"]),
+        ("meter_id in ('1',)", '"meter_id" IN (?)', ["1"]),
+        ("meter_id in ('1', '2')", '"meter_id" IN (?, ?)', ["1", "2"]),
+        ("not (meter_id in ('1', '2'))", 'NOT "meter_id" IN (?, ?)', ["1", "2"]),
         ("meter_id eq null", '"meter_id" IS NULL', []),
         ("meter_id ne null", '"meter_id" IS NOT NULL', []),
         ("eac gt 10", '"eac" > ?', [10]),
@@ -32,7 +31,7 @@ from odata_query import exceptions as ex, sql
         (
             "eac gt 1 and eac lt 1 and meter_id eq '1'",
             '"eac" > ? AND "eac" < ? AND "meter_id" = ?',
-            [1, 1, "1"]
+            [1, 1, "1"],
         ),
         # OData spec defines AND with higher precedence than OR:
         (
@@ -83,7 +82,11 @@ from odata_query import exceptions as ex, sql
             '"period_start" + INTERVAL \'2\' MONTH >= "period_end"',
             [],
         ),
-        ("year(period_start) eq 2019", 'EXTRACT (YEAR FROM "period_start") = ?', [2019]),
+        (
+            "year(period_start) eq 2019",
+            'EXTRACT (YEAR FROM "period_start") = ?',
+            [2019],
+        ),
         (
             "period_end lt now() sub duration'P365D'",
             "\"period_end\" < CURRENT_TIMESTAMP - INTERVAL '365' DAY",
@@ -101,7 +104,7 @@ from odata_query import exceptions as ex, sql
         ),
         (
             "startswith(trim(meter_id), '999')",
-            "TRIM(\"meter_id\") LIKE ?",
+            'TRIM("meter_id") LIKE ?',
             ["999%"],
         ),
         (
@@ -109,11 +112,15 @@ from odata_query import exceptions as ex, sql
             "EXTRACT (YEAR FROM CAST (CURRENT_TIMESTAMP AS DATE)) = ?",
             [2020],
         ),
-        ("length(concat('abc', 'def')) lt 10", "CHAR_LENGTH(? || ?) < ?", ["abc", "def", 10]),
+        (
+            "length(concat('abc', 'def')) lt 10",
+            "CHAR_LENGTH(? || ?) < ?",
+            ["abc", "def", 10],
+        ),
         (
             "length(concat(('1', '2'), ('3', '4'))) eq 4",
             "CARDINALITY((?, ?) || (?, ?)) = ?",
-            ["1", "2", "3", "4", 4]
+            ["1", "2", "3", "4", 4],
         ),
         (
             "indexof(substring('abcdefghi', 3), 'hi') gt 1",
@@ -137,7 +144,7 @@ from odata_query import exceptions as ex, sql
         ),
         (
             "measurement_class eq 'C' and endswith(data_collector, 'rie')",
-            "\"measurement_class\" = ? AND \"data_collector\" LIKE ?",
+            '"measurement_class" = ? AND "data_collector" LIKE ?',
             ["C", "%rie"],
         ),
         # GITHUB-47
@@ -148,9 +155,7 @@ from odata_query import exceptions as ex, sql
         ),
     ],
 )
-def test_odata_filter_to_sql(
-    odata_query: str, expected: str, params, lexer, parser
-):
+def test_odata_filter_to_sql(odata_query: str, expected: str, params, lexer, parser):
     ast = parser.parse(lexer.tokenize(odata_query))
     visitor = sql.AstToSqlVisitor(phandler=sql.base.ParametrizationHandler())
 
@@ -173,4 +178,4 @@ def test_odata_filter_to_sql_handles_errors(
     visitor = sql.AstToSqlVisitor()
 
     with pytest.raises(expected):
-        res = visitor.visit(ast)
+        visitor.visit(ast)

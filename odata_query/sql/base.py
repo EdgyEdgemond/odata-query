@@ -1,14 +1,13 @@
-import contextlib
 import logging
 from datetime import date, datetime
-from typing import Optional, Union
+from typing import List, Optional, Union
 from uuid import UUID
 
 from odata_query import ast, exceptions, typing, visitor
 
 log = logging.getLogger(__name__)
 
-Parameter =  Union[ast.String, ast.Integer, ast.Float, ast.Date, ast.DateTime, ast.GUID]
+Parameter = Union[ast.String, ast.Integer, ast.Float, ast.Date, ast.DateTime, ast.GUID]
 ParameterValue = Union[str, int, float, date, datetime, UUID]
 
 
@@ -17,7 +16,7 @@ class ParametrizationHandler:
     positional = False
 
     def __init__(self) -> None:
-        self.params = []
+        self.params: List[ParameterValue] = []
 
     def _add_parameter(self, value: ParameterValue):
         if self.positional and value in self.params:
@@ -84,16 +83,22 @@ class AstToSqlVisitor(visitor.NodeVisitor):
     Args:
         table_alias: Optional alias for the root table.
     """
-    phandler = RawSqlHandler()
 
-    def __init__(self, table_alias: Optional[str] = None, *, phandler: ParametrizationHandler | None = None):
+    phandler: ParametrizationHandler = RawSqlHandler()
+
+    def __init__(
+        self,
+        table_alias: Optional[str] = None,
+        *,
+        phandler: Optional[ParametrizationHandler] = None,
+    ):
         super().__init__()
         self.table_alias = table_alias
         if phandler:
             self.phandler = phandler
 
     @property
-    def params(self) -> list:
+    def params(self) -> List[ParameterValue]:
         return self.phandler.params
 
     def visit_Identifier(self, node: ast.Identifier) -> str:

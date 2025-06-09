@@ -1,13 +1,13 @@
 import re
 
 from odata_query import ast, exceptions, typing
-
 from odata_query.sql import base
 
 
 class RawSqlHandler(base.RawSqlHandler):
     def _datetime(self, raw: str) -> str:
         return f"FROM_ISO8601_TIMESTAMP('{raw}')"
+
 
 UNSAFE_CHARS = re.compile(r"[^a-zA-Z0-9_]")
 
@@ -35,6 +35,7 @@ class AstToAthenaSqlVisitor(base.AstToSqlVisitor):
     Args:
         table_alias: Optional alias for the root table.
     """
+
     phandler = RawSqlHandler()
 
     def visit_Identifier(self, node: ast.Identifier) -> str:
