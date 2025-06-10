@@ -7,8 +7,17 @@ from odata_query import ast, exceptions, typing, visitor
 
 log = logging.getLogger(__name__)
 
-Parameter = Union[ast.String, ast.Integer, ast.Float, ast.Date, ast.DateTime, ast.GUID]
-ParameterValue = Union[str, int, float, date, datetime, UUID]
+Parameter = Union[
+    ast.String,
+    ast.Integer,
+    ast.Float,
+    ast.Date,
+    ast.DateTime,
+    ast.GUID,
+    ast.Boolean,
+    ast.Null,
+]
+ParameterValue = Union[str, int, float, date, datetime, UUID, bool, None]
 
 
 class ParameterHandler:
@@ -64,6 +73,12 @@ class RawSqlHandler(ParameterHandler):
         # Wrap in single quotes for string constants acc SQL Standard
         return f"'{raw}'"
 
+    def _sanitize_Null(self, node: ast.Boolean) -> str:
+        return node.val.upper()
+
+    def _sanitize_Boolean(self, node: ast.Boolean) -> str:
+        return node.val.upper()
+
     def _sanitize_Date(self, node: ast.Date) -> str:
         # Single quotes for date constants acc SQL Standard
         return f"DATE '{node.val}'"
@@ -115,7 +130,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Null(self, node: ast.Null) -> str:
         ":meta private:"
-        return "NULL"
+        return self.phandler.add_parameter(node)
 
     def visit_Integer(self, node: ast.Integer) -> str:
         ":meta private:"
@@ -127,7 +142,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Boolean(self, node: ast.Boolean) -> str:
         ":meta private:"
-        return node.val.upper()
+        return self.phandler.add_parameter(node)
 
     def visit_String(self, node: ast.String) -> str:
         ":meta private:"

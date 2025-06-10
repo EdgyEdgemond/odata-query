@@ -132,8 +132,8 @@ def test_ast_to_sql(ast_input: ast._Node, sql_expected: str):
         (ast.Compare(ast.Eq(), ast.Integer("1"), ast.Integer("2")), "$1 = $2", [1, 2]),
         (
             ast.Compare(ast.NotEq(), ast.Boolean("true"), ast.Boolean("false")),
-            "TRUE != FALSE",
-            [],
+            "$1 != $2",
+            [True, False],
         ),
         (
             ast.Compare(ast.LtE(), ast.Identifier("eac"), ast.Float("123.12")),
@@ -191,8 +191,8 @@ def test_ast_to_sql_positional(
         (ast.Compare(ast.Eq(), ast.Integer("1"), ast.Integer("1")), "? = ?", [1, 1]),
         (
             ast.Compare(ast.NotEq(), ast.Boolean("true"), ast.Boolean("false")),
-            "TRUE != FALSE",
-            [],
+            "? != ?",
+            [True, False],
         ),
         (
             ast.Compare(ast.LtE(), ast.Identifier("eac"), ast.Float("123.12")),
