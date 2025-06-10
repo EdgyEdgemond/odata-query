@@ -12,28 +12,31 @@ ParameterValue = Union[str, int, float, date, datetime, UUID]
 
 
 class ParameterHandler:
-    def _sanitize(self, node: ast._Literal) -> ParameterValue:
+    def __init__(self) -> None:
+        self.params: List[ParameterValue] = []
+
+    def _sanitize(self, node: Parameter) -> ParameterValue:
         return node.val
 
-    def sanitize(self, node: ast._Literal) -> ParameterValue:
+    def sanitize(self, node: Parameter) -> ParameterValue:
         method = "_sanitize_" + node.__class__.__name__
         sanitizer = getattr(self, method, self._sanitize)
         return sanitizer(node)
 
-    def add_parameter(self, node: ast._Literal) -> str:
-        return self.sanitize(node)
+    def add_parameter(self, node: Parameter) -> str:
+        return str(self.sanitize(node))
 
 
 class ParametrizationHandler(ParameterHandler):
-    template = "?"
+    template: str = "?"
 
-    def __init__(self) -> None:
-        self.params: List[ParameterValue] = []
-
-    def _sanitize(self, node: ast._Literal) -> ParameterValue:
+    def _sanitize(self, node: Parameter) -> ParameterValue:
         return node.py_val
 
-    def add_parameter(self, node: ast._Literal) -> str:
+    def sanitize(self, node: Parameter) -> ParameterValue:
+        return super().sanitize(node)
+
+    def add_parameter(self, node: Parameter) -> str:
         val = self.sanitize(node)
         self.params.append(val)
 
@@ -41,9 +44,9 @@ class ParametrizationHandler(ParameterHandler):
 
 
 class PositionalParametrizationHandler(ParametrizationHandler):
-    template = "${}"
+    template: str = "${}"
 
-    def add_parameter(self, node: ast._Literal) -> str:
+    def add_parameter(self, node: Parameter) -> str:
         val = self.sanitize(node)
         if val in self.params:
             position = self.params.index(val) + 1

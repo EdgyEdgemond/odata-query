@@ -36,7 +36,7 @@ class Attribute(_Node):
 ###############################################################################
 @dataclass(frozen=True)
 class _Literal(_Node):
-    val: str
+    pass
 
     @property
     def py_val(self):
