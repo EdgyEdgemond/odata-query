@@ -38,6 +38,9 @@ class ParameterHandler:
 class ParametrizationHandler(ParameterHandler):
     template: str = "?"
 
+    def __init__(self, initial_params: list[ParameterValue] | None = None) -> None:
+        self.params: List[ParameterValue] = initial_params or []
+
     def _sanitize(self, node: Parameter) -> ParameterValue:
         return node.py_val
 
