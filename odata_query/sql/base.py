@@ -73,7 +73,7 @@ class RawSqlHandler(ParameterHandler):
         # Wrap in single quotes for string constants acc SQL Standard
         return f"'{raw}'"
 
-    def _sanitize_Null(self, node: ast.Boolean) -> str:
+    def _sanitize_Null(self, node: ast.Null) -> str:
         return node.val.upper()
 
     def _sanitize_Boolean(self, node: ast.Boolean) -> str:
