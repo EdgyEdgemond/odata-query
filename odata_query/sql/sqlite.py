@@ -11,6 +11,12 @@ class RawSqlHandler(base.RawSqlHandler):
         # Single quotes for datetime constants acc SQL Standard
         return f"DATETIME('{node.val}')"
 
+    def _sanitize_Boolean(self, node: ast.Boolean) -> str:
+        """:meta private:"""
+        if node.py_val:
+            return "1"
+        return "0"
+
 
 class ParametrizationHandler(base.ParametrizationHandler):
     def _sanitize_GUID(self, node: ast.GUID) -> str:
@@ -27,12 +33,6 @@ class AstToSqliteSqlVisitor(base.AstToSqlVisitor):
     """
 
     phandler = RawSqlHandler()
-
-    def visit_Boolean(self, node: ast.Boolean) -> str:
-        """:meta private:"""
-        if node.py_val:
-            return "1"
-        return "0"
 
     def sqlfunc_indexof(self, *args: ast._Node) -> str:
         """:meta private:"""

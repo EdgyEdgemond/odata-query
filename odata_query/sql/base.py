@@ -15,9 +15,8 @@ Parameter = Union[
     ast.DateTime,
     ast.GUID,
     ast.Boolean,
-    ast.Null,
 ]
-ParameterValue = Union[str, int, float, date, datetime, UUID, bool, None]
+ParameterValue = Union[str, int, float, date, datetime, UUID, bool]
 
 
 class ParameterHandler:
@@ -73,9 +72,6 @@ class RawSqlHandler(ParameterHandler):
         # Wrap in single quotes for string constants acc SQL Standard
         return f"'{raw}'"
 
-    def _sanitize_Null(self, node: ast.Null) -> str:
-        return node.val.upper()
-
     def _sanitize_Boolean(self, node: ast.Boolean) -> str:
         return node.val.upper()
 
@@ -130,7 +126,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
 
     def visit_Null(self, node: ast.Null) -> str:
         ":meta private:"
-        return self.phandler.add_parameter(node)
+        return node.val.upper()
 
     def visit_Integer(self, node: ast.Integer) -> str:
         ":meta private:"
