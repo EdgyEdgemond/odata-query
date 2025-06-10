@@ -5,8 +5,8 @@ from odata_query.sql import base
 
 
 class RawSqlHandler(base.RawSqlHandler):
-    def _datetime(self, raw: str) -> str:
-        return f"FROM_ISO8601_TIMESTAMP('{raw}')"
+    def _sanitize_DateTime(self, node: ast.DateTime) -> str:
+        return f"FROM_ISO8601_TIMESTAMP('{node.val}')"
 
 
 UNSAFE_CHARS = re.compile(r"[^a-zA-Z0-9_]")

@@ -1,26 +1,20 @@
-from uuid import UUID
-
 from odata_query import ast, exceptions, typing
 from odata_query.sql import base
 
 
 class RawSqlHandler(base.RawSqlHandler):
-    def _date(self, raw: str) -> str:
+    def _sanitize_Date(self, node: ast.Date) -> str:
         # Single quotes for date constants acc SQL Standard
-        return f"DATE('{raw}')"
+        return f"DATE('{node.val}')"
 
-    def _datetime(self, raw: str) -> str:
+    def _sanitize_DateTime(self, node: ast.DateTime) -> str:
         # Single quotes for datetime constants acc SQL Standard
-        return f"DATETIME('{raw}')"
+        return f"DATETIME('{node.val}')"
 
 
 class ParametrizationHandler(base.ParametrizationHandler):
-    def add_parameter(self, node: base.Parameter) -> str:
-        # sqlite does not have support for UUID types
-        value = node.py_val
-        if isinstance(value, UUID):
-            value = node.val
-        return self._add_parameter(value)
+    def _sanitize_GUID(self, node: ast.GUID) -> str:
+        return node.val
 
 
 class AstToSqliteSqlVisitor(base.AstToSqlVisitor):

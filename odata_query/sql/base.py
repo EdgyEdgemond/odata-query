@@ -11,68 +11,67 @@ Parameter = Union[ast.String, ast.Integer, ast.Float, ast.Date, ast.DateTime, as
 ParameterValue = Union[str, int, float, date, datetime, UUID]
 
 
-class ParametrizationHandler:
+class ParameterHandler:
+    def _sanitize(self, node: ast._Literal) -> ParameterValue:
+        return node.val
+
+    def sanitize(self, node: ast._Literal) -> ParameterValue:
+        method = "_sanitize_" + node.__class__.__name__
+        sanitizer = getattr(self, method, self._sanitize)
+        return sanitizer(node)
+
+    def add_parameter(self, node: ast._Literal) -> str:
+        return self.sanitize(node)
+
+
+class ParametrizationHandler(ParameterHandler):
     template = "?"
-    positional = False
 
     def __init__(self) -> None:
         self.params: List[ParameterValue] = []
 
-    def _add_parameter(self, value: ParameterValue):
-        if self.positional and value in self.params:
-            position = self.params.index(value) + 1
+    def _sanitize(self, node: ast._Literal) -> ParameterValue:
+        return node.py_val
+
+    def add_parameter(self, node: ast._Literal) -> str:
+        val = self.sanitize(node)
+        self.params.append(val)
+
+        return self.template
+
+
+class PositionalParametrizationHandler(ParametrizationHandler):
+    template = "${}"
+
+    def add_parameter(self, node: ast._Literal) -> str:
+        val = self.sanitize(node)
+        if val in self.params:
+            position = self.params.index(val) + 1
         else:
-            self.params.append(value)
+            self.params.append(val)
             position = len(self.params)
 
         return self.template.format(position)
 
-    def add_parameter(self, node: Parameter) -> str:
-        return self._add_parameter(node.py_val)
 
-
-class RawSqlHandler(ParametrizationHandler):
-    template = ""
-    positional = False
-
-    def __init__(self) -> None:
-        self.params = []
-
-    def _string(self, raw: str) -> str:
+class RawSqlHandler(ParameterHandler):
+    def _sanitize_String(self, node: ast.String) -> str:
         # Replace single quotes with double single-quotes acc SQL standard:
-        raw = raw.replace("'", "''")
+        raw = node.val.replace("'", "''")
         # Wrap in single quotes for string constants acc SQL Standard
         return f"'{raw}'"
 
-    def _date(self, raw: str) -> str:
+    def _sanitize_Date(self, node: ast.Date) -> str:
         # Single quotes for date constants acc SQL Standard
-        return f"DATE '{raw}'"
+        return f"DATE '{node.val}'"
 
-    def _datetime(self, raw: str) -> str:
-        raw = raw.replace("T", " ")
+    def _sanitize_DateTime(self, node: ast.DateTime) -> str:
+        raw = node.val.replace("T", " ")
         # Single quotes for datetime constants acc SQL Standard
         return f"TIMESTAMP '{raw}'"
 
-    def _uuid(self, raw: str) -> str:
-        return f"'{raw}'"
-
-    def add_parameter(self, node: Parameter) -> str:
-        # Deal with sql injection protection
-        pyval = node.py_val
-        val = node.val
-        if isinstance(pyval, str):
-            val = self._string(val)
-
-        elif isinstance(pyval, datetime):
-            val = self._datetime(val)
-
-        elif isinstance(pyval, date):
-            val = self._date(val)
-
-        elif isinstance(pyval, UUID):
-            val = self._uuid(val)
-
-        return val
+    def _sanitize_GUID(self, node: ast.GUID) -> str:
+        return f"'{node.val}'"
 
 
 class AstToSqlVisitor(visitor.NodeVisitor):
@@ -84,13 +83,13 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         table_alias: Optional alias for the root table.
     """
 
-    phandler: ParametrizationHandler = RawSqlHandler()
+    phandler: ParameterHandler = RawSqlHandler()
 
     def __init__(
         self,
         table_alias: Optional[str] = None,
         *,
-        phandler: Optional[ParametrizationHandler] = None,
+        phandler: Optional[ParameterHandler] = None,
     ):
         super().__init__()
         self.table_alias = table_alias

@@ -10,9 +10,8 @@ class CustomParametrizationHandler(sql.base.ParametrizationHandler):
     template = "%s"
 
 
-class PositionalParametrizationHandler(sql.base.ParametrizationHandler):
+class PositionalParametrizationHandler(sql.base.PositionalParametrizationHandler):
     template = "${}"
-    positional = True
 
 
 @pytest.mark.parametrize(
