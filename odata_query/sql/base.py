@@ -107,11 +107,9 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         table_alias: Optional[str] = None,
         *,
         phandler: Optional[ParameterHandler] = None,
-        column_mapping: dict[str, str] | None = None,
     ):
         super().__init__()
         self.table_alias = table_alias
-        self.column_mapping = column_mapping or {}
         if phandler:
             self.phandler = phandler
 
@@ -123,11 +121,7 @@ class AstToSqlVisitor(visitor.NodeVisitor):
         ":meta private:"
         # Double quotes for column names acc SQL Standard
         sql_id = f'"{node.name}"'
-        
-        if node.name in self.column_mapping:
-            sql_id = self.column_mapping[node.name]
-
-        elif self.table_alias:
+        if self.table_alias:
             sql_id = f'"{self.table_alias}".{sql_id}'
 
         return sql_id
